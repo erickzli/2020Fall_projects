@@ -1,11 +1,11 @@
-max_x = 10000
-max_y = 10000
+city_limit_x = 500
+city_limit_y = 500
 
-portal_x = 300
-portal_y = 300
+station_limit_x = 100
+station_limit_y = 100
 
-city0_population = 1000
-city1_population = 1000
+city0_population = 100
+city1_population = 100
 
 quarantine_deduction = 0.1
 
@@ -16,5 +16,7 @@ infection_rate = dict(
     unmasked_unmasked=0.6,
 )
 
-max_time = 10000
-trains_depart_at = 200
+max_time = 1000
+trains_departure_timestamp = 200
+
+loop_print_level = 100
