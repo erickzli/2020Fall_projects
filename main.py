@@ -41,24 +41,55 @@ class Person:
         return self.pid
 
     def is_infected(self):
+        """
+        Whether the Person has been infected. Once it changes to True, it won't change back to False
+        :return:
+        """
         return self.infected
 
     def is_virus_active(self):
+        """
+        Whether the Virus is still active
+        :return:
+        """
         return self.virus_active
 
     def is_masked(self):
+        """
+        Whether the Person is masked.
+        :return:
+        """
         return self.masked
 
     def get_id(self):
+        """
+        Get the Person ID
+        :return:
+        """
         return self.pid
 
     def get_current_location(self):
+        """
+        Get the current location of the Person
+        :return:
+        """
         return [self.curr_x, self.curr_y]
 
     def set_city(self, new_city):
+        """
+        Set the city
+        :param new_city:
+        :return:
+        """
         self.curr_city = new_city
 
     def get_infected(self, s_pid, curr_time):
+        """
+        Indicate the Person is infected.
+        :param s_pid:
+        :param curr_time:
+        :return:
+        """
         self.infected = True
         self.virus_active = True
         self.infected_timestamp = curr_time
@@ -67,10 +98,20 @@ class Person:
             print('Person', s_pid, 'infected Person', self.get_id())
 
     def ask_for_quarantine(self, curr_time):
+        """
+        The Person will go under quarantine.
+        :param curr_time:
+        :return:
+        """
         self.under_quarantine = True
         self.quarantine_timestamp = curr_time
 
     def set_new_location(self, additional_move=0):
+        """
+        Randomly set the new location of the Person for each loop.
+        :param additional_move:
+        :return:
+        """
         move_goal = self.moving_distance + additional_move
 
         # When the position is too close to the left edge
@@ -132,11 +173,20 @@ class City:
         return self.cid
 
     def arrival(self, train_list):
+        """
+        When a train arrives, if there are people on the train, accept those people into the city.
+        :param train_list:
+        :return:
+        """
         for idx in range(len(train_list)):
             train_list[idx].set_city = 1
         self.people_list += train_list
 
     def departure(self):
+        """
+        Train departs. Remove those people who leave.
+        :return:
+        """
         onboard = []
         for idx, p in enumerate(self.people_list):
             if p.curr_x <= self.train_x and p.curr_y <= self.train_y:
@@ -151,18 +201,34 @@ class City:
         return onboard
 
     def get_curr_population(self):
+        """
+        Get the current population in the city
+        :return:
+        """
         self.curr_population = len(self.people_list)
         return self.curr_population
 
     def get_curr_real_infection_rate(self):
+        """
+        Get the real infection rate.
+        :return:
+        """
         self.real_infection_rate = sum(p.infected for p in self.people_list) / self.get_curr_population()
         return self.real_infection_rate
 
     def get_curr_detected_infection_rate(self):
+        """
+        Get the detected infection rate.
+        :return:
+        """
         self.detected_infection_rate = sum(p.detected for p in self.people_list) / self.get_curr_population()
         return self.detected_infection_rate
 
     def get_curr_virus_active_rate(self):
+        """
+        Get the current active case rate
+        :return:
+        """
         self.virus_active_rate = sum(p.virus_active for p in self.people_list) / self.get_curr_population()
         return self.virus_active_rate
 
@@ -182,6 +248,10 @@ class City:
         return self.local_virus_active_rate
 
     def get_infected_pid(self):
+        """
+        Get the infected people's ID
+        :return:
+        """
         print('Infected people: ', end='')
         for idx, p in enumerate(self.people_list):
             if p.is_infected():
@@ -197,6 +267,11 @@ class City:
             self.people_list[idx].set_new_location()
 
     def intracity_infection(self, curr_loop):
+        """
+        Randomly determine whether a person is infected if they have close contact with someone who is virus-active.
+        :param curr_loop:
+        :return:
+        """
         newly_infected_pid_list = []
         newly_spread_pid_list = []
         for idx1, p1 in enumerate(self.people_list[:-1]):
