@@ -3,6 +3,8 @@ import configfile
 import pandas as pd
 import plotly.express as px
 
+SCENARIO_CODE = configfile.scenario_code
+
 
 class Person:
     def __init__(self, pid, infection, masked, city, max_x, max_y):
@@ -41,6 +43,9 @@ class Person:
     def is_infected(self):
         return self.infected
 
+    def is_virus_active(self):
+        return self.virus_active
+
     def is_masked(self):
         return self.masked
 
@@ -58,7 +63,8 @@ class Person:
         self.virus_active = True
         self.infected_timestamp = curr_time
         self.infected_by = s_pid
-        print('Person', s_pid, 'infected Person', self.get_id())
+        if configfile.verbose:
+            print('Person', s_pid, 'infected Person', self.get_id())
 
     def ask_for_quarantine(self, curr_time):
         self.under_quarantine = True
@@ -93,11 +99,15 @@ class Person:
 class City:
     def __init__(self, cid, init_population, init_infection_rate, init_masked_rate, max_x, max_y, train_x, train_y):
         self.cid = cid
+        self.population = init_population
         self.curr_population = init_population
         self.infection_rate = init_infection_rate
-        self.real_infection_rate = -1
-        self.detected_infection_rate = -1
-        self.virus_active_rate = -1
+        self.real_infection_rate = 0
+        self.detected_infection_rate = 0
+        self.virus_active_rate = 0
+        self.local_real_infection_rate = 0
+        self.local_detected_infection_rate = 0
+        self.local_virus_active_rate = 0
         self.max_x = max_x
         self.max_y = max_y
         self.train_x = train_x
@@ -108,14 +118,15 @@ class City:
             for i in range(init_population):
                 infected = True if random.random() < init_infection_rate else False
                 masked = True if random.random() < init_masked_rate else False
-                self.people_list.append(Person(i, infected, masked, 0, max_x, max_y))
+                self.people_list.append(Person(i, infected, masked, self.cid, max_x, max_y))
         else:
             for i in range(init_population):
                 infected = True if random.random() < init_infection_rate else False
                 masked = True if random.random() < init_masked_rate else False
-                self.people_list.append(Person(10000 + i, infected, masked, 0, max_x, max_y))
-        print('Initialized City', self.cid)
-        self.get_infected_pid()
+                self.people_list.append(Person(10000 + i, infected, masked, self.cid, max_x, max_y))
+        if configfile.verbose:
+            print('Initialized City', self.cid)
+            self.get_infected_pid()
 
     def __repr__(self):
         return self.cid
@@ -134,8 +145,9 @@ class City:
                             if p.curr_x > self.train_x or p.curr_y > self.train_y]
 
         if len(onboard) > 0:
-            print('Train passengers: ', end='')
-            print_pid_from_list(onboard)
+            if configfile.verbose:
+                print('Train passengers: ', end='')
+                print_pid_from_list(onboard)
         return onboard
 
     def get_curr_population(self):
@@ -153,6 +165,21 @@ class City:
     def get_curr_virus_active_rate(self):
         self.virus_active_rate = sum(p.virus_active for p in self.people_list) / self.get_curr_population()
         return self.virus_active_rate
+
+    def get_local_curr_real_infection_rate(self):
+        self.local_real_infection_rate = sum((p.infected and p.curr_city == self.cid) for p in self.people_list) / \
+                                         self.population
+        return self.local_real_infection_rate
+
+    def get_local_curr_detected_infection_rate(self):
+        self.local_detected_infection_rate = sum((p.detected and p.curr_city == self.cid) for p in self.people_list) / \
+                                       self.population
+        return self.local_detected_infection_rate
+
+    def get_local_curr_virus_active_rate(self):
+        self.local_virus_active_rate = sum((p.virus_active and p.curr_city == self.cid) for p in self.people_list) / \
+                                 self.population
+        return self.local_virus_active_rate
 
     def get_infected_pid(self):
         print('Infected people: ', end='')
@@ -179,12 +206,12 @@ class City:
                 distance = calculate_distance(location1, location2)
 
                 if distance < 6:
-                    if p1.is_infected() and not p2.is_infected():
+                    if p1.is_virus_active() and not p2.is_virus_active() and not p2.is_infected():
                         if simulate_infection(p1, p2):
                             if p2.pid not in newly_infected_pid_list:
                                 newly_infected_pid_list.append(p2.pid)
                                 newly_spread_pid_list.append(p1.pid)
-                    elif not p1.is_infected() and p2.is_infected():
+                    elif not p1.is_virus_active() and p2.is_virus_active() and not p1.is_infected():
                         if simulate_infection(p2, p1):
                             if p1.pid not in newly_infected_pid_list:
                                 newly_infected_pid_list.append(p1.pid)
@@ -211,9 +238,24 @@ class City:
             if p.under_quarantine and curr_ts - p.quarantine_timestamp == configfile.quarantine_period:
                 self.people_list[idx].under_quarantine = False
 
+    def put_into_quarantine(self, curr_ts):
+        for idx, p in enumerate(self.people_list):
+            if p.detected:
+                self.people_list[idx].under_quarantine = True
+                self.people_list[idx].quarantine_timestamp = curr_ts
+
+    def put_into_quarantine_by_pid(self, curr_ts, pid_list):
+        for idx, p in enumerate(self.people_list):
+            if p.get_id() in pid_list:
+                self.people_list[idx].under_quarantine = True
+                self.people_list[idx].quarantine_timestamp = curr_ts
+
 
 def simulate_infection(infected_p, target_p):
-    if infected_p.is_masked() and target_p.is_masked():
+    if infected_p.under_quarantine or target_p.under_quarantine:
+        if random.random() < configfile.quarantine_p:
+            return True
+    elif infected_p.is_masked() and target_p.is_masked():
         if random.random() < configfile.infection_rate['masked_masked']:
             return True
     elif infected_p.is_masked() and not target_p.is_masked():
@@ -243,35 +285,55 @@ def print_pid_from_list(li):
     print()
 
 
-if __name__ == '__main__':
+def get_pid_from_list(li):
+    return_list = []
+    for idx, i in enumerate(li):
+        return_list.append(i.get_id())
+    return return_list
+
+
+def one_round(loop_num, dta):
     city0 = City(0, configfile.city0_population, 0.05, 0.5, configfile.city_limit_x, configfile.city_limit_y,
                  configfile.station_limit_x, configfile.station_limit_y)
     city1 = City(1, configfile.city1_population, 0, 0, configfile.city_limit_x, configfile.city_limit_y,
                  configfile.station_limit_x, configfile.station_limit_y)
 
-    colnames = ['ts', 'real_infection_rate', 'detected_infection_rate', 'virus_active_rate']
-    df = pd.DataFrame(columns=colnames)
+    if configfile.verbose:
+        print(city0.get_curr_population())
+        print(city1.get_curr_population())
 
-    print(city0.get_curr_population())
-    print(city1.get_curr_population())
+        print(city0.get_curr_real_infection_rate())
+        print(city1.get_curr_real_infection_rate())
 
-    print(city0.get_curr_real_infection_rate())
-    print(city1.get_curr_real_infection_rate())
+    small_counter = 0
 
     # the big loop: each loop indicates one time unit.
     for loop_idx in range(configfile.max_time):
-        if (loop_idx + 1) % configfile.trains_departure_timestamp == 0:
-            trainlist = city0.departure()
-            city1.arrival(trainlist)
         if loop_idx % configfile.trains_departure_timestamp == 0:
-            real_rate = city1.get_curr_real_infection_rate()
-            detected_rate = city1.get_curr_detected_infection_rate()
-            virus_rate = city1.get_curr_virus_active_rate()
-            df = df.append({'ts': loop_idx, 'real_infection_rate': real_rate,
-                            'detected_infection_rate': detected_rate, 'virus_active_rate': virus_rate},
-                           ignore_index=True)
+            trainlist = []
+            if SCENARIO_CODE != 4:
+                trainlist = city0.departure()
+                city1.arrival(trainlist)
+            if SCENARIO_CODE == 3:
+                trainpid = get_pid_from_list(trainlist)
+                city1.put_into_quarantine_by_pid(loop_idx, trainpid)
 
-        print_loop_number(loop_idx, configfile.loop_print_level)
+            real_rate = city1.get_local_curr_real_infection_rate()
+            detected_rate = city1.get_local_curr_detected_infection_rate()
+            virus_rate = city1.get_local_curr_virus_active_rate()
+            if loop_num == 0:
+                dta = dta.append({'ts': loop_idx, 'local_real_infection_rate': real_rate,
+                                  'local_detected_infection_rate': detected_rate,
+                                  'local_virus_active_rate': virus_rate},
+                                 ignore_index=True)
+            else:
+                dta.at[small_counter, 'local_real_infection_rate'] += real_rate
+                dta.at[small_counter, 'local_detected_infection_rate'] += detected_rate
+                dta.at[small_counter, 'local_virus_active_rate'] += virus_rate
+            small_counter += 1
+
+        if configfile.verbose:
+            print_loop_number(loop_idx, configfile.loop_print_level)
         city0.people_move()
         city1.people_move()
         city0.intracity_infection(loop_idx)
@@ -280,18 +342,34 @@ if __name__ == '__main__':
         city1.update_symptons(loop_idx)
         city0.update_infection_status(loop_idx)
         city1.update_infection_status(loop_idx)
-        city1.update_quarantine_status(loop_idx)
+        if SCENARIO_CODE == 2 or SCENARIO_CODE == 3:
+            city1.put_into_quarantine(loop_idx)
+            city1.update_quarantine_status(loop_idx)
 
-    print(city0.get_curr_real_infection_rate())
-    print(city1.get_curr_real_infection_rate())
-    print(city0.get_curr_detected_infection_rate())
-    print(city1.get_curr_detected_infection_rate())
-    city0.get_infected_pid()
-    city1.get_infected_pid()
+    if configfile.verbose:
+        print(city0.get_curr_real_infection_rate())
+        print(city1.get_curr_real_infection_rate())
+        print(city0.get_curr_detected_infection_rate())
+        print(city1.get_curr_detected_infection_rate())
+        city0.get_infected_pid()
+        city1.get_infected_pid()
 
-    print(city0.get_curr_population())
-    print(city1.get_curr_population())
+        print(city0.get_curr_population())
+        print(city1.get_curr_population())
+        print(dta)
+
+    return dta
+
+
+if __name__ == '__main__':
+    colnames = ['ts', 'local_real_infection_rate', 'local_detected_infection_rate', 'local_virus_active_rate']
+    df = pd.DataFrame(columns=colnames)
+
+    for roundn in range(configfile.iteration_num):
+        print('Loop at:', roundn)
+        df = one_round(roundn, df)
+
+    df = df / [1, configfile.iteration_num, configfile.iteration_num, configfile.iteration_num]
     print(df)
-
-    fig = px.line(df, x='ts', y='detected_infection_rate', title='City B Detected Infection Rate')
+    fig = px.line(df, x='ts', y='local_detected_infection_rate', title='City B Detected Infection Rate')
     fig.show()
