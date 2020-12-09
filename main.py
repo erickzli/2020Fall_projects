@@ -1,5 +1,7 @@
 import random
 import configfile
+import pandas as pd
+import plotly.express as px
 
 
 class Person:
@@ -10,12 +12,17 @@ class Person:
         """
         self.pid = pid
         self.infected = infection
+        self.virus_active = infection
+        self.infected_by = -1
         self.detected = False
         self.masked = masked
         self.curr_city = city
         self.under_quarantine = False
+        self.will_show_symptom = False
         self.infected_timestamp = -1
+        self.detected_timestamp = -1
         self.quarantine_timestamp = -1
+        self.recovered = False
         self.max_x = max_x
         self.max_y = max_y
         self.curr_x = random.random() * max_x
@@ -24,6 +31,9 @@ class Person:
 
         if infection:
             self.infected_timestamp = 0
+
+        if random.random() < configfile.show_symptom_possibility:
+            self.will_show_symptom = True
 
     def __repr__(self):
         return self.pid
@@ -45,7 +55,9 @@ class Person:
 
     def get_infected(self, s_pid, curr_time):
         self.infected = True
+        self.virus_active = True
         self.infected_timestamp = curr_time
+        self.infected_by = s_pid
         print('Person', s_pid, 'infected Person', self.get_id())
 
     def ask_for_quarantine(self, curr_time):
@@ -85,6 +97,7 @@ class City:
         self.infection_rate = init_infection_rate
         self.real_infection_rate = -1
         self.detected_infection_rate = -1
+        self.virus_active_rate = -1
         self.max_x = max_x
         self.max_y = max_y
         self.train_x = train_x
@@ -120,8 +133,9 @@ class City:
         self.people_list = [p for p in self.people_list
                             if p.curr_x > self.train_x or p.curr_y > self.train_y]
 
-        print('Train passengers: ', end='')
-        print_pid_from_list(onboard)
+        if len(onboard) > 0:
+            print('Train passengers: ', end='')
+            print_pid_from_list(onboard)
         return onboard
 
     def get_curr_population(self):
@@ -135,6 +149,10 @@ class City:
     def get_curr_detected_infection_rate(self):
         self.detected_infection_rate = sum(p.detected for p in self.people_list) / self.get_curr_population()
         return self.detected_infection_rate
+
+    def get_curr_virus_active_rate(self):
+        self.virus_active_rate = sum(p.virus_active for p in self.people_list) / self.get_curr_population()
+        return self.virus_active_rate
 
     def get_infected_pid(self):
         print('Infected people: ', end='')
@@ -177,6 +195,22 @@ class City:
                 spreader_pid = newly_spread_pid_list[newly_infected_pid_list.index(p.pid)]
                 self.people_list[idx].get_infected(spreader_pid, curr_loop)
 
+    def update_symptons(self, curr_ts):
+        for idx, p in enumerate(self.people_list):
+            if p.will_show_symptom and p.infected and curr_ts - p.infected_timestamp == configfile.show_symptom_period:
+                self.people_list[idx].detected = True
+                self.people_list[idx].detected_timestamp = curr_ts
+
+    def update_infection_status(self, curr_ts):
+        for idx, p in enumerate(self.people_list):
+            if p.infected and curr_ts - p.infected_timestamp == configfile.virus_active_period:
+                self.people_list[idx].virus_active = False
+
+    def update_quarantine_status(self, curr_ts):
+        for idx, p in enumerate(self.people_list):
+            if p.under_quarantine and curr_ts - p.quarantine_timestamp == configfile.quarantine_period:
+                self.people_list[idx].under_quarantine = False
+
 
 def simulate_infection(infected_p, target_p):
     if infected_p.is_masked() and target_p.is_masked():
@@ -210,10 +244,13 @@ def print_pid_from_list(li):
 
 
 if __name__ == '__main__':
-    city0 = City(0, configfile.city0_population, 0.05, 0.8, configfile.city_limit_x, configfile.city_limit_y,
+    city0 = City(0, configfile.city0_population, 0.05, 0.5, configfile.city_limit_x, configfile.city_limit_y,
                  configfile.station_limit_x, configfile.station_limit_y)
     city1 = City(1, configfile.city1_population, 0, 0, configfile.city_limit_x, configfile.city_limit_y,
                  configfile.station_limit_x, configfile.station_limit_y)
+
+    colnames = ['ts', 'real_infection_rate', 'detected_infection_rate', 'virus_active_rate']
+    df = pd.DataFrame(columns=colnames)
 
     print(city0.get_curr_population())
     print(city1.get_curr_population())
@@ -224,17 +261,37 @@ if __name__ == '__main__':
     # the big loop: each loop indicates one time unit.
     for loop_idx in range(configfile.max_time):
         if (loop_idx + 1) % configfile.trains_departure_timestamp == 0:
-            print('Train departs')
             trainlist = city0.departure()
             city1.arrival(trainlist)
+        if loop_idx % configfile.trains_departure_timestamp == 0:
+            real_rate = city1.get_curr_real_infection_rate()
+            detected_rate = city1.get_curr_detected_infection_rate()
+            virus_rate = city1.get_curr_virus_active_rate()
+            df = df.append({'ts': loop_idx, 'real_infection_rate': real_rate,
+                            'detected_infection_rate': detected_rate, 'virus_active_rate': virus_rate},
+                           ignore_index=True)
 
         print_loop_number(loop_idx, configfile.loop_print_level)
         city0.people_move()
         city1.people_move()
         city0.intracity_infection(loop_idx)
         city1.intracity_infection(loop_idx)
+        city0.update_symptons(loop_idx)
+        city1.update_symptons(loop_idx)
+        city0.update_infection_status(loop_idx)
+        city1.update_infection_status(loop_idx)
+        city1.update_quarantine_status(loop_idx)
 
     print(city0.get_curr_real_infection_rate())
     print(city1.get_curr_real_infection_rate())
+    print(city0.get_curr_detected_infection_rate())
+    print(city1.get_curr_detected_infection_rate())
     city0.get_infected_pid()
     city1.get_infected_pid()
+
+    print(city0.get_curr_population())
+    print(city1.get_curr_population())
+    print(df)
+
+    fig = px.line(df, x='ts', y='detected_infection_rate', title='City B Detected Infection Rate')
+    fig.show()
