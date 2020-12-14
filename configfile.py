@@ -1,3 +1,10 @@
+#!/usr/bin/env python
+"""
+configfile.py: where you toggle the simulation
+Course: IS 597PRO Fall 2020
+Author: Erick Li
+"""
+
 # City limit
 #   <--- X --->
 # ----------------

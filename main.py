@@ -1,9 +1,16 @@
+#!/usr/bin/env python
+"""
+main.py: where you run the Twin City COVID Monte Carlo Simulation!
+Course: IS 597PRO Fall 2020
+Author: Erick Li
+"""
+
 import random
 import configfile
 import pandas as pd
 import plotly.express as px
 
-# the scenario code
+# the scenario code (check configfile.py)
 SCENARIO_CODE = configfile.scenario_code
 
 
@@ -399,6 +406,15 @@ def simulate_infection(infected_p, target_p):
     :param infected_p: Infected Person object
     :param target_p: Targeted Person object
     :return: boolean value whether the person is infected.
+    >>> random.seed(123)
+    >>> infected = Person(pid=12, infection=True, masked=False, city=0, max_x=100, max_y=100)
+    >>> targeted = Person(pid=24, infection=False, masked=False, city=0, max_x=100, max_y=100)
+    >>> print(simulate_infection(infected, targeted))
+    True
+    >>> print(simulate_infection(infected, targeted))
+    True
+    >>> print(simulate_infection(infected, targeted))
+    False
     """
     if infected_p.under_quarantine or target_p.under_quarantine:
         if random.random() < configfile.infection_prob['quarantined']:
@@ -424,6 +440,14 @@ def calculate_distance(loc1, loc2):
     :param loc1: list that contains X and Y coords of location 1.
     :param loc2: list that contains X and Y coords of location 2.
     :return: the distance
+    >>> calculate_distance([0, 0], [0, 0])
+    0.0
+    >>> calculate_distance([2, 4], [5, 3.5])
+    3.0413812651491097
+    >>> calculate_distance(3, 7)
+    Traceback (most recent call last):
+    ...
+    TypeError: 'int' object is not subscriptable
     """
     return ((loc1[0] - loc2[0]) ** 2 + (loc1[1] - loc2[1]) ** 2) ** 0.5
 
@@ -435,9 +459,24 @@ def print_iter_number(curr_iter, print_level):
     :param curr_iter: current iteration
     :param print_level: when should the print function be executed.
     :return:
+    >>> print_iter_number(1000, 2000)
+    >>> print_iter_number(4000, 2000)
+    Iteration at: 4000
+    >>> print_iter_number(3000, 2000.5)
+    Traceback (most recent call last):
+    ...
+    TypeError: print_level must be an integer
+    >>> print_iter_number(2000, -2000)
+    Traceback (most recent call last):
+    ...
+    ValueError: print_level must be greater than 0
     """
+    if not isinstance(print_level, int):
+        raise TypeError('print_level must be an integer')
+    if print_level <= 0:
+        raise ValueError('print_level must be greater than 0')
     if curr_iter % print_level == 0:
-        print('Iteration at: ', curr_iter)
+        print('Iteration at:', curr_iter)
 
 
 def print_pid_from_list(li):
@@ -445,6 +484,15 @@ def print_pid_from_list(li):
     Print the pid of the Person objects in the list.
     :param li: the list of Person objects.
     :return:
+    >>> p1 = Person(pid=12, infection=True, masked=True, city=0, max_x=100, max_y=100)
+    >>> p2 = Person(pid=156, infection=True, masked=True, city=0, max_x=100, max_y=100)
+    >>> p3 = Person(pid=20003, infection=True, masked=False, city=1, max_x=100, max_y=100)
+    >>> plist = [p1, p2, p3]
+    >>> print_pid_from_list(plist)
+    12 156 20003
+    >>> plist_empty = []
+    >>> print_pid_from_list(plist_empty)
+    <BLANKLINE>
     """
     for idx, i in enumerate(li):
         print(i.get_id(), end=' ')
@@ -456,6 +504,12 @@ def get_pid_from_list(li):
     Return the pid of the Person objects in the list.
     :param li: the list of Person objects.
     :return: a list of pid
+    >>> p1 = Person(pid=12, infection=True, masked=True, city=0, max_x=100, max_y=100)
+    >>> p2 = Person(pid=156, infection=True, masked=True, city=0, max_x=100, max_y=100)
+    >>> p3 = Person(pid=20003, infection=True, masked=False, city=1, max_x=100, max_y=100)
+    >>> plist = [p1, p2, p3]
+    >>> print(get_pid_from_list(plist))
+    [12, 156, 20003]
     """
     return_list = []
     for idx, i in enumerate(li):
