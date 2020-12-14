@@ -38,11 +38,11 @@ class Person:
         self.detected_iter = -1
         self.quarantine_iter = -1
         self.recovered = False
-        self.max_x = max_x
-        self.max_y = max_y
-        self.curr_x = random.random() * max_x
-        self.curr_y = random.random() * max_y
-        self.moving_distance = 6
+        self.max_x = max_x  # city limit X
+        self.max_y = max_y  # city limit Y
+        self.curr_x = random.random() * max_x  # initial location X
+        self.curr_y = random.random() * max_y  # initial location Y
+        self.moving_distance = 6  # default movement distance per iteration
 
         if infection:
             self.infected_iter = 0
@@ -173,21 +173,24 @@ class City:
         self.local_real_infection_rate = 0
         self.local_detected_infection_rate = 0
         self.local_virus_active_rate = 0
-        self.max_x = max_x
-        self.max_y = max_y
-        self.train_x = train_x
-        self.train_y = train_y
-        self.people_list = []
+        self.max_x = max_x  # city limit X
+        self.max_y = max_y  # city limit Y
+        self.train_x = train_x  # train station limit X
+        self.train_y = train_y  # train station limit Y
+        self.people_list = []  # list of Person objects currently in the city
 
+        # City A
         if cid == 0:
             for i in range(init_population):
                 infected = True if random.random() < init_infection_rate else False
                 masked = True if random.random() < init_masked_rate else False
                 self.people_list.append(Person(i, infected, masked, self.cid, max_x, max_y))
+        # City B
         else:
             for i in range(init_population):
                 infected = True if random.random() < init_infection_rate else False
                 masked = True if random.random() < init_masked_rate else False
+                # pids from City B contain 5 digits
                 self.people_list.append(Person(10000 + i, infected, masked, self.cid, max_x, max_y))
         if configfile.verbose:
             print('Initialized City', self.cid)
@@ -202,6 +205,7 @@ class City:
         :param train_list: list of Person objects currently onboard.
         :return:
         """
+        # Add Person objects from the train_list to the city
         for idx in range(len(train_list)):
             train_list[idx].set_curr_city = 1
         self.people_list += train_list
@@ -212,6 +216,7 @@ class City:
         are considered onboard.
         :return: list of Person objects currently onboard.
         """
+        # Remove Person objects within the station limit to the onboard list
         onboard = []
         for idx, p in enumerate(self.people_list):
             if p.curr_x <= self.train_x and p.curr_y <= self.train_y:
@@ -320,24 +325,31 @@ class City:
         """
         newly_infected_pid_list = []
         newly_spread_pid_list = []
+        # Calculate the distance between each Person object one-by-one
         for idx1, p1 in enumerate(self.people_list[:-1]):
             for idx2, p2 in enumerate(self.people_list[idx1+1:]):
                 location1 = p1.get_current_location()
                 location2 = p2.get_current_location()
                 distance = calculate_distance(location1, location2)
 
+                # If the distance is smaller than 6 units.
                 if distance < 6:
+                    # If the virus is active in Person 1, but not active in perviously uninfected Person 2, it is
+                    #  possible that Person 1 could infect Person 2.
                     if p1.is_virus_active() and not p2.is_virus_active() and not p2.is_infected():
                         if simulate_infection(p1, p2):
                             if p2.pid not in newly_infected_pid_list:
                                 newly_infected_pid_list.append(p2.pid)
                                 newly_spread_pid_list.append(p1.pid)
+                    # If the virus is active in Person 2, but not active in perviously uninfected Person 1, it is
+                    #  possible that Person 2 could infect Person 1.
                     elif not p1.is_virus_active() and p2.is_virus_active() and not p1.is_infected():
                         if simulate_infection(p2, p1):
                             if p1.pid not in newly_infected_pid_list:
                                 newly_infected_pid_list.append(p1.pid)
                                 newly_spread_pid_list.append(p2.pid)
 
+        # Record all the infections in the current iteration
         for idx, p in enumerate(self.people_list):
             if p.pid in newly_infected_pid_list:
                 spreader_pid = newly_spread_pid_list[newly_infected_pid_list.index(p.pid)]
@@ -350,6 +362,8 @@ class City:
         :return:
         """
         for idx, p in enumerate(self.people_list):
+            # If the Person could show symptoms, got infected, and it has been show_symptom_period iterations since the
+            #  infection, the infected Person got detected.
             if p.will_show_symptom and p.infected and curr_iter - p.infected_iter == configfile.show_symptom_period:
                 self.people_list[idx].detected = True
                 self.people_list[idx].detected_iter = curr_iter
@@ -361,7 +375,9 @@ class City:
         :return:
         """
         for idx, p in enumerate(self.people_list):
-            if p.infected and curr_iter - p.infected_iter == configfile.virus_active_period:
+            # If the Person has been infected, virus active, and it has been virus_active_period iterations since the
+            #  infection, the virus becomes inactive.
+            if p.infected and p.virus_active and curr_iter - p.infected_iter == configfile.virus_active_period:
                 self.people_list[idx].virus_active = False
 
     def update_quarantine_status(self, curr_iter):
@@ -372,6 +388,8 @@ class City:
         :return:
         """
         for idx, p in enumerate(self.people_list):
+            # If the Person is under quarantine, and it has been quarantine_period iterations since the quarantine,
+            #  change the quarantine status to False.
             if p.under_quarantine and curr_iter - p.quarantine_iter == configfile.quarantine_period:
                 self.people_list[idx].under_quarantine = False
 
@@ -444,11 +462,8 @@ def calculate_distance(loc1, loc2):
     0.0
     >>> calculate_distance([2, 4], [5, 3.5])
     3.0413812651491097
-    >>> calculate_distance(3, 7)
-    Traceback (most recent call last):
-    ...
-    TypeError: 'int' object is not subscriptable
     """
+    # Calculate the euclidean distance between loc1 and loc2.
     return ((loc1[0] - loc2[0]) ** 2 + (loc1[1] - loc2[1]) ** 2) ** 0.5
 
 
@@ -539,13 +554,12 @@ def one_round(curr_iter, dta):
 
     small_counter = 0
 
-    # the big iteration: each iteration indicates one time unit.
+    # The big iteration: each iteration indicates one time unit.
     for iter_idx in range(configfile.max_iter):
         if iter_idx % configfile.trains_departure_iter == 0:
-            trainlist = []
-            if SCENARIO_CODE != 4:
-                trainlist = city0.departure()
-                city1.arrival(trainlist)
+            trainlist = city0.departure()
+            city1.arrival(trainlist)
+            # Scenario 3: put everyone off the train into quarantine not matter whether they are infected.
             if SCENARIO_CODE == 3:
                 trainpid = get_pid_from_list(trainlist)
                 city1.put_into_quarantine_by_pid(iter_idx, trainpid)
@@ -574,6 +588,7 @@ def one_round(curr_iter, dta):
         city1.update_symptoms(iter_idx)
         city0.update_infection_status(iter_idx)
         city1.update_infection_status(iter_idx)
+        # Scenarios 2 & 3: Put anyone who shows symptoms to quarantine.
         if SCENARIO_CODE == 2 or SCENARIO_CODE == 3:
             city1.put_into_quarantine(iter_idx)
             city1.update_quarantine_status(iter_idx)
