@@ -15,7 +15,7 @@ show_symptom_period = 360
 virus_active_period = 840
 quarantine_period = 1200
 
-infection_rate = dict(
+infection_prob = dict(
     masked_masked=0.02,
     masked_unmasked=0.05,
     unmasked_masked=0.2,
@@ -23,9 +23,9 @@ infection_rate = dict(
 )
 
 max_time = 3000
-trains_departure_timestamp = 200
+trains_departure_iter = 200
 
-loop_print_level = 5000
+iter_print_level = 1000
 scenario_code = 3
 iteration_num = 30
-verbose = False
+verbose = True
