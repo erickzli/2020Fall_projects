@@ -540,10 +540,12 @@ def one_round(curr_iter, dta):
     local virus active rate.
     :return: the updated pandas dataframe.
     """
-    city0 = City(0, configfile.city0_population, 0.05, 0.5, configfile.city_limit_x, configfile.city_limit_y,
-                 configfile.station_limit_x, configfile.station_limit_y)
-    city1 = City(1, configfile.city1_population, 0, 0, configfile.city_limit_x, configfile.city_limit_y,
-                 configfile.station_limit_x, configfile.station_limit_y)
+    city0 = City(0, configfile.city0_population, configfile.city0_init_infection_rate, configfile.city0_masked_rate,
+                 configfile.city_limit_x, configfile.city_limit_y, configfile.station_limit_x,
+                 configfile.station_limit_y)
+    city1 = City(1, configfile.city1_population, configfile.city1_init_infection_rate, configfile.city1_masked_rate,
+                 configfile.city_limit_x, configfile.city_limit_y, configfile.station_limit_x,
+                 configfile.station_limit_y)
 
     if configfile.verbose:
         print(city0.get_curr_population())

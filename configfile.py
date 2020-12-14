@@ -32,6 +32,12 @@ station_limit_y = 100
 city0_population = 100
 city1_population = 100
 
+city0_init_infection_rate = 0.05
+city1_init_infection_rate = 0
+
+city0_masked_rate = 0.5
+city1_masked_rate = 0
+
 # Possibility that a person shows symptoms after being infected.
 show_symptom_possibility = 0.7
 # Number of iterations after being infected that starts showing symptoms (if the person will show symptoms at all).
