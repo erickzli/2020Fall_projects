@@ -63,4 +63,4 @@ iter_print_level = 1000
 scenario_code = 3
 
 # whether print detail info.
-verbose = True
+verbose = False
