@@ -401,7 +401,7 @@ def simulate_infection(infected_p, target_p):
     :return: boolean value whether the person is infected.
     """
     if infected_p.under_quarantine or target_p.under_quarantine:
-        if random.random() < configfile.quarantine_p:
+        if random.random() < configfile.infection_prob['quarantined']:
             return True
     elif infected_p.is_masked() and target_p.is_masked():
         if random.random() < configfile.infection_prob['masked_masked']:
@@ -486,7 +486,7 @@ def one_round(curr_iter, dta):
     small_counter = 0
 
     # the big iteration: each iteration indicates one time unit.
-    for iter_idx in range(configfile.max_time):
+    for iter_idx in range(configfile.max_iter):
         if iter_idx % configfile.trains_departure_iter == 0:
             trainlist = []
             if SCENARIO_CODE != 4:
@@ -543,11 +543,11 @@ if __name__ == '__main__':
     colnames = ['iter', 'local_real_infection_rate', 'local_detected_infection_rate', 'local_virus_active_rate']
     df = pd.DataFrame(columns=colnames)
 
-    for roundn in range(configfile.iteration_num):
+    for roundn in range(configfile.max_round):
         print('Iteration at:', roundn)
         df = one_round(roundn, df)
 
-    df = df / [1, configfile.iteration_num, configfile.iteration_num, configfile.iteration_num]
+    df = df / [1, configfile.max_round, configfile.max_round, configfile.max_round]
     print(df)
     fig = px.line(df, x='iter', y='local_detected_infection_rate', title='City B Detected Infection Rate')
     fig.show()
